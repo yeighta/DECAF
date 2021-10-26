@@ -28,7 +28,7 @@ with open("requirements.txt") as fp:
 
 
 setuptools.setup(
-    name="decaf",
+    name="decaf_synthetic_data",
     version=find_version(),
     author="Trent Kyono",
     author_email="",
