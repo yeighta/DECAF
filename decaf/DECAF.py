@@ -10,6 +10,8 @@ import torch.nn as nn
 
 import decaf.logger as log
 
+DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
 
 class TraceExpm(torch.autograd.Function):
     @staticmethod
@@ -17,7 +19,7 @@ class TraceExpm(torch.autograd.Function):
         # detach so we can cast to NumPy
         E = slin.expm(input.detach().numpy())
         f = np.trace(E)
-        E = torch.from_numpy(E)
+        E = torch.from_numpy(E).to(DEVICE)
         ctx.save_for_backward(E)
         return torch.as_tensor(f, dtype=input.dtype)
 
@@ -183,8 +185,8 @@ class DECAF(pl.LightningModule):
             h_dim=h_dim,
             use_mask=use_mask,
             dag_seed=dag_seed,
-        )
-        self.discriminator = Discriminator(x_dim=self.x_dim, h_dim=h_dim)
+        ).to(DEVICE)
+        self.discriminator = Discriminator(x_dim=self.x_dim, h_dim=h_dim).to(DEVICE)
 
         self.dag_seed = dag_seed
 
@@ -216,7 +218,7 @@ class DECAF(pl.LightningModule):
             )[0]
             W[i] = torch.sum(torch.abs(gradients), axis=0)
 
-        h = trace_expm(W ** 2) - self.hparams.x_dim
+        h = trace_expm(W**2) - self.hparams.x_dim
 
         return 0.5 * self.hparams.rho * h * h + self.hparams.alpha * h
 
@@ -277,10 +279,10 @@ class DECAF(pl.LightningModule):
 
     def dag_loss(self) -> torch.Tensor:
         W = self.get_W()
-        h = trace_expm(W ** 2) - self.x_dim
+        h = trace_expm(W**2) - self.x_dim
         l1_loss = torch.norm(W, 1)
         return (
-            0.5 * self.hparams.rho * h ** 2
+            0.5 * self.hparams.rho * h**2
             + self.hparams.alpha * h
             + self.hparams.l1_W * l1_loss
         )
