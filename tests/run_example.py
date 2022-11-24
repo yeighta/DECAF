@@ -13,7 +13,6 @@ if __name__ == "__main__":
     parser.add_argument("--lr", type=float, default=0.5e-3)
     parser.add_argument("--batch_size", type=int, default=64)
     parser.add_argument("--epochs", type=int, default=10)
-    parser.add_argument("--d_updates", type=int, default=10)
     parser.add_argument("--threshold", type=float, default=0.1)
     parser.add_argument("--alpha", type=float, default=2)
     parser.add_argument("--rho", type=float, default=2)
@@ -52,10 +51,6 @@ if __name__ == "__main__":
     lambda_gp = 10  # gradient penalisation used in WGAN-GP
     l1_g = 0  # l1 reg on sum of all parameters in generator
     weight_decay = 1e-2  # used by AdamW to regularise all network weights. Similar to L2 but for momentum-based optimization
-    p_gen = (
-        -1
-    )  # proportion of points to generate (instead of copy from input) # Has to be negative for sequential sampling!
-    use_mask = True
 
     # causality settings
     grad_dag_loss = False
@@ -71,15 +66,12 @@ if __name__ == "__main__":
         batch_size=args.batch_size,
         lambda_privacy=lambda_privacy,
         lambda_gp=lambda_gp,
-        d_updates=args.d_updates,
         alpha=args.alpha,
         rho=args.rho,
         weight_decay=weight_decay,
         grad_dag_loss=grad_dag_loss,
         l1_g=l1_g,
         l1_W=args.l1_W,
-        p_gen=p_gen,
-        use_mask=use_mask,
     )
     trainer = pl.Trainer(
         gpus=number_of_gpus,
@@ -90,10 +82,6 @@ if __name__ == "__main__":
     )
     trainer.fit(model, dm)
     synth_data = (
-        model.gen_synthetic(
-            data_tensor, gen_order=model.get_gen_order(), biased_edges=bias_dict
-        )
-        .detach()
-        .numpy()
+        model.gen_synthetic(data_tensor, biased_edges=bias_dict).detach().cpu().numpy()
     )
     print("Data generated successfully!")
