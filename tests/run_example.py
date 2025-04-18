@@ -41,7 +41,7 @@ if __name__ == "__main__":
     # DATA SETUP according to dag_seed
     G = nx.DiGraph(dag_seed)
     data = gen_data_nonlinear(G, SIZE=2000)
-    dm = DataModule(data.values)
+    dm = DataModule(data.values, num_workers=10)
     data_tensor = dm.dataset.x
 
     # sample default hyperparameters
@@ -54,8 +54,6 @@ if __name__ == "__main__":
 
     # causality settings
     grad_dag_loss = False
-
-    number_of_gpus = 0
 
     # model initialisation and train
     model = DECAF(
@@ -74,9 +72,9 @@ if __name__ == "__main__":
         l1_W=args.l1_W,
     )
     trainer = pl.Trainer(
-        gpus=number_of_gpus,
+        accelerator="auto",
         max_epochs=args.epochs,
-        progress_bar_refresh_rate=1,
+        enable_progress_bar=True,
         profiler=False,
         callbacks=[],
     )

@@ -30,7 +30,7 @@ def generate_baseline(size: int = 100) -> Tuple[torch.Tensor, DataModule, list, 
     # DATA SETUP according to dag_seed
     G = nx.DiGraph(dag_seed)
     data = gen_data_nonlinear(G, SIZE=size)
-    dm = DataModule(data.values)
+    dm = DataModule(data.values, num_workers=10)
 
     return torch.Tensor(np.asarray(data)), dm, dag_seed, bias_dict
 
