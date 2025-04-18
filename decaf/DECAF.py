@@ -1,5 +1,5 @@
 from collections import OrderedDict
-from typing import Any, List, Optional, Union
+from typing import Any, List, Optional, Union, Tuple, Dict
 
 import networkx as nx
 import numpy as np
@@ -205,6 +205,7 @@ class DECAF(pl.LightningModule):
     ):
         super().__init__()
         self.save_hyperparameters()
+        self.automatic_optimization = False  # Enable manual optimization
 
         self.iterations_d = 0
         self.iterations_g = 0
@@ -345,62 +346,46 @@ class DECAF(pl.LightningModule):
         gen_order = list(nx.algorithms.dag.topological_sort(G))
         return gen_order
 
-    def training_step(
-        self, batch: torch.Tensor, batch_idx: int, optimizer_idx: int
-    ) -> OrderedDict:
+    def training_step(self, batch: torch.Tensor, batch_idx: int) -> Dict[str, torch.Tensor]:
+        opt_d, opt_g = self.optimizers()
+
         # sample noise
         z = self.sample_z(batch.shape[0])
         z = z.type_as(batch)
         generated_batch = self.generator.sequential(batch, z, self.get_gen_order())
 
+        # train discriminator
+        opt_d.zero_grad()
+        self.iterations_d += 1
+        real_loss = torch.mean(self.discriminator(batch))
+        fake_loss = torch.mean(self.discriminator(generated_batch.detach()))
+        d_loss = fake_loss - real_loss
+        d_loss += self.hparams.lambda_gp * self.compute_gradient_penalty(
+            batch, generated_batch.detach()
+        )
+        if torch.isnan(d_loss).sum() != 0:
+            raise ValueError("NaN in the discr loss")
+        self.manual_backward(d_loss)
+        opt_d.step()
+
         # train generator
-        if optimizer_idx == 0:
-            self.iterations_d += 1
-            # Measure discriminator's ability to classify real from generated samples
+        opt_g.zero_grad()
+        self.iterations_g += 1
+        g_loss = -torch.mean(self.discriminator(generated_batch))
+        g_loss += self.hparams.lambda_privacy * self.privacy_loss(batch, generated_batch)
+        g_loss += self.hparams.l1_g * self.l1_reg(self.generator)
 
-            # how well can it label as real?
-            real_loss = torch.mean(self.discriminator(batch))
-            fake_loss = torch.mean(self.discriminator(generated_batch.detach()))
+        if len(self.dag_seed) == 0:
+            if self.hparams.grad_dag_loss:
+                g_loss += self.gradient_dag_loss(batch, z)
+        if torch.isnan(g_loss).sum() != 0:
+            raise ValueError("NaN in the gen loss")
+        self.manual_backward(g_loss)
+        opt_g.step()
 
-            # discriminator loss
-            d_loss = fake_loss - real_loss
+        return {"loss": d_loss + g_loss, "d_loss": d_loss, "g_loss": g_loss}
 
-            # add the gradient penalty
-            d_loss += self.hparams.lambda_gp * self.compute_gradient_penalty(
-                batch, generated_batch
-            )
-            if torch.isnan(d_loss).sum() != 0:
-                raise ValueError("NaN in the discr loss")
-
-            return d_loss
-        elif optimizer_idx == 1:
-            # sanity check: keep track of G updates
-            self.iterations_g += 1
-
-            # adversarial loss (negative D fake loss)
-            g_loss = -torch.mean(
-                self.discriminator(generated_batch)
-            )  # self.adversarial_loss(self.discriminator(self.generated_batch), valid)
-
-            # add privacy loss of ADS-GAN
-            g_loss += self.hparams.lambda_privacy * self.privacy_loss(
-                batch, generated_batch
-            )
-
-            # add l1 regularization loss
-            g_loss += self.hparams.l1_g * self.l1_reg(self.generator)
-
-            if len(self.dag_seed) == 0:
-                if self.hparams.grad_dag_loss:
-                    g_loss += self.gradient_dag_loss(batch, z)
-            if torch.isnan(g_loss).sum() != 0:
-                raise ValueError("NaN in the gen loss")
-
-            return g_loss
-        else:
-            raise ValueError("should not get here")
-
-    def configure_optimizers(self) -> tuple:
+    def configure_optimizers(self) -> list:
         lr = self.hparams.lr
         b1 = self.hparams.b1
         b2 = self.hparams.b2
@@ -418,4 +403,4 @@ class DECAF(pl.LightningModule):
             betas=(b1, b2),
             weight_decay=weight_decay,
         )
-        return [opt_d, opt_g], []
+        return [opt_d, opt_g]
