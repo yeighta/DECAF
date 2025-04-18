@@ -14,11 +14,11 @@ jobs:
         os: [macos-latest]
 
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
         with:
           submodules: true
       - name: Set up Python
-        uses: actions/setup-python@v1
+        uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
       - name: Build and publish
@@ -39,7 +39,7 @@ jobs:
     runs-on: ubuntu-latest
     container: quay.io/pypa/manylinux2014_x86_64
     steps:
-      - uses: actions/checkout@v1
+      - uses: actions/checkout@v4
         with:
           submodules: true
       - name: Set target Python version PATH
@@ -58,11 +58,11 @@ jobs:
         python-version: ["3.7", "3.8", "3.9", "3.10"]
 
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
         with:
           submodules: true
       - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v1
+        uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
       - name: Build and publish

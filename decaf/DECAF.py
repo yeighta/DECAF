@@ -1,5 +1,4 @@
-from collections import OrderedDict
-from typing import Any, List, Optional, Union, Tuple, Dict
+from typing import Any, Optional, Union
 
 import networkx as nx
 import numpy as np
@@ -59,7 +58,7 @@ class Generator_causal(nn.Module):
         h_dim: int,
         f_scale: float = 0.1,
         dag_seed: list = [],
-        nonlin_out: Optional[List] = None,
+        nonlin_out: Optional[list] = None,
     ) -> None:
         super().__init__()
 
@@ -201,7 +200,7 @@ class DECAF(pl.LightningModule):
         grad_dag_loss: bool = False,
         l1_g: float = 0,
         l1_W: float = 1,
-        nonlin_out: Optional[List] = None,
+        nonlin_out: Optional[list] = None,
     ):
         super().__init__()
         self.save_hyperparameters()
@@ -346,7 +345,9 @@ class DECAF(pl.LightningModule):
         gen_order = list(nx.algorithms.dag.topological_sort(G))
         return gen_order
 
-    def training_step(self, batch: torch.Tensor, batch_idx: int) -> Dict[str, torch.Tensor]:
+    def training_step(
+        self, batch: torch.Tensor, batch_idx: int
+    ) -> dict[str, torch.Tensor]:
         opt_d, opt_g = self.optimizers()
 
         # sample noise
@@ -372,7 +373,9 @@ class DECAF(pl.LightningModule):
         opt_g.zero_grad()
         self.iterations_g += 1
         g_loss = -torch.mean(self.discriminator(generated_batch))
-        g_loss += self.hparams.lambda_privacy * self.privacy_loss(batch, generated_batch)
+        g_loss += self.hparams.lambda_privacy * self.privacy_loss(
+            batch, generated_batch
+        )
         g_loss += self.hparams.l1_g * self.l1_reg(self.generator)
 
         if len(self.dag_seed) == 0:
